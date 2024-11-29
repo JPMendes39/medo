@@ -1,0 +1,195 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+def f(t, y):
+    return 2 * t / (y**2 * t**2 + y**2)
+
+def solucao_analitica(t):
+    return np.cbrt(3 * np.log(t**2 + 1) + 1)
+
+def metodo_euler(f, t0, y0, h, t_final):
+    t = t0
+    y = y0
+    while t < t_final:
+        y = y + h * f(t, y)
+        t = t + h
+    return t, y
+
+def metodo_ponto_medio(f, t0, y0, h, t_final):
+    t = t0
+    y = y0
+    while t < t_final:
+        k1 = f(t, y)
+        k2 = f(t + h / 2, y + h * k1 / 2)
+        y = y + h * k2
+        t = t + h
+    return t, y
+
+def runge_kutta(f, t0, y0, h, t_final):
+    t = t0
+    y = y0
+    while t < t_final:
+        k1 = f(t, y)
+        k2 = f(t + h / 2, y + h * k1 / 2)
+        k3 = f(t + h / 2, y + h * k2 / 2)
+        k4 = f(t + h, y + h * k3)
+        y = y + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+        t = t + h
+    return t, y
+
+def adams_bashforth_4(f, t0, y0, h, t_final):
+    ts = [t0]
+    ys = [y0]
+    t = t0
+    y = y0
+    for _ in range(3):
+        k1 = f(t, y)
+        k2 = f(t + h / 2, y + h * k1 / 2)
+        k3 = f(t + h / 2, y + h * k2 / 2)
+        k4 = f(t + h, y + h * k3)
+        y = y + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+        t += h
+        ts.append(t)
+        ys.append(y)
+
+    while t < t_final:
+        y_next = ys[-1] + h / 24 * (55 * f(ts[-1], ys[-1])
+                                    - 59 * f(ts[-2], ys[-2])
+                                    + 37 * f(ts[-3], ys[-3])
+                                    - 9 * f(ts[-4], ys[-4]))
+        t += h
+        ts.append(t)
+        ys.append(y_next)
+    return ts[-1], ys[-1]
+
+def adams_moulton_pc(f, t0, y0, h, t_final, num_correcoes):
+    ts, ys = runge_kutta_inicial(f, t0, y0, h, 3) 
+
+    while ts[-1] < t_final - 1e-10:
+        t_pred = ts[-1] + h
+        y_pred = ys[-1] + h / 24 * (55 * f(ts[-1], ys[-1])
+                                    - 59 * f(ts[-2], ys[-2])
+                                    + 37 * f(ts[-3], ys[-3])
+                                    - 9 * f(ts[-4], ys[-4])) 
+
+        y_corr = y_pred
+        for _ in range(num_correcoes):
+            y_corr = ys[-1] + h / 24 * (9 * f(t_pred, y_corr)
+                                        + 19 * f(ts[-1], ys[-1])
+                                        - 5 * f(ts[-2], ys[-2])
+                                        + f(ts[-3], ys[-3]))
+
+        ts.append(t_pred)
+        ys.append(y_corr)
+
+    return ts[-1], ys[-1]
+
+# Função para calcular e exibir resultados aproximados e erro em t = 20
+def calcular_metodo(f, metodo, metodo_nome, h, num_correcoes=None):
+    t0 = 0       # Valor inicial de t
+    y0 = 1       # Valor inicial de y
+    t_final = 20 # Tempo final
+
+    # Determinar valores aproximados
+    if num_correcoes is not None:
+        t, y_metodo = metodo(f, t0, y0, h, t_final, num_correcoes)
+        metodo_nome += f" ({num_correcoes} correções)"
+    else:
+        t, y_metodo = metodo(f, t0, y0, h, t_final)
+
+    # Solução analítica e erro
+    y_analitica = solucao_analitica(t)
+    erro = abs(y_metodo - y_analitica)
+
+    # Exibir os resultados
+    print(f"{metodo_nome}, h = {h:.3f} -> y_aprox = {y_metodo:.8f}, y_analitica = {y_analitica:.8f}, erro = {erro:.8f}")
+    return erro
+
+# Valores de h
+hs = [0.1, 0.01, 0.001]
+
+# Comparação dos métodos numéricos em t = 20
+print("\n--- Resultados em t = 20 ---")
+erros_euler = []
+erros_ponto_medio = []
+erros_rk = []
+
+for h in hs:
+    erros_euler.append(calcular_metodo(f, metodo_euler, "Euler", h))
+    erros_ponto_medio.append(calcular_metodo(f, metodo_ponto_medio, "Ponto Médio", h))
+    erros_rk.append(calcular_metodo(f, runge_kutta, "Runge-Kutta", h))
+
+# Comparação da evolução do erro em relação a h
+plt.figure(figsize=(10, 6))
+plt.loglog(hs, erros_euler, 'o-', label="Euler")
+plt.loglog(hs, erros_ponto_medio, 's-', label="Ponto Médio")
+plt.loglog(hs, erros_rk, '^-', label="Runge-Kutta")
+plt.title("Evolução do Erro em t = 20")
+plt.xlabel("Passo (h)")
+plt.ylabel("Erro")
+plt.legend()
+plt.grid(True, which="both", linestyle="--", linewidth=0.5)
+plt.show()
+
+# Gráficos para t ∈ [0, 200] com h = 1
+def metodo_completo(f, metodo, t0, y0, h, t_final):
+    ts = [t0]
+    ys = [y0]
+    t = t0
+    y = y0
+    while t < t_final:
+        y = metodo(f, t, y, h, t + h)[1]
+        t += h
+        ts.append(t)
+        ys.append(y)
+    return ts, ys
+
+# Parâmetros do problema
+t0 = 0
+y0 = 1
+t_final = 200
+h = 1
+
+# Solução analítica
+t_analitica = np.linspace(t0, t_final, 1000)
+y_analitica = solucao_analitica(t_analitica)
+
+# Soluções aproximadas
+ts_euler, ys_euler = metodo_completo(f, metodo_euler, t0, y0, h, t_final)
+ts_ponto_medio, ys_ponto_medio = metodo_completo(f, metodo_ponto_medio, t0, y0, h, t_final)
+ts_rk, ys_rk = metodo_completo(f, runge_kutta, t0, y0, h, t_final)
+
+# Plotagem dos gráficos
+plt.figure(figsize=(12, 6))
+plt.plot(t_analitica, y_analitica, label="Solução Analítica", color="black", linewidth=2)
+plt.plot(ts_euler, ys_euler, label="Método de Euler", color="red", linestyle="--")
+plt.plot(ts_ponto_medio, ys_ponto_medio, label="Método do Ponto Médio", color="blue", linestyle="-.")
+plt.plot(ts_rk, ys_rk, label="Runge-Kutta 4ª Ordem", color="green", linestyle=":")
+
+# Configurações do gráfico
+plt.title("Comparação entre Solução Analítica e Métodos Numéricos (h = 1)", fontsize=14)
+plt.xlabel("t", fontsize=12)
+plt.ylabel("y(t)", fontsize=12)
+plt.legend(fontsize=12)
+plt.grid(True)
+plt.show()
+
+h = 0.1
+print("\n--- Resultado para o Método de Adams-Bashforth de 4ª Ordem ---")
+calcular_metodo(f, adams_bashforth_4, "Adams-Bashforth 4ª Ordem", h)
+
+h = 0.1
+print("\n--- Resultados para Métodos Preditor-Corretor de Adams-Moulton ---")
+for num_correcoes in range(1, 4):  # Testar 1, 2 e 3 correções
+    calcular_metodo(f, adams_moulton_pc, "Adams-Moulton Preditor-Corretor", h, num_correcoes)
+
+
+# Gráfico da evolução do erro
+plt.figure(figsize=(10, 6))
+plt.semilogy([1, 2, 3], erros_adams_moulton, 'o-', label="Adams-Moulton PC (1-3 correções)")
+plt.title("Erro do Método Preditor-Corretor de Adams-Moulton")
+plt.xlabel("Número de Correções")
+plt.ylabel("Erro")
+plt.legend()
+plt.grid(True, which="both", linestyle="--", linewidth=0.5)
+plt.show()
